@@ -1,0 +1,9 @@
+# Dependencies for regenerating fig1-fig5 and running the master notebook (CPU only).
+# Pinned to the versions used to verify the reproduction.
+numpy==2.4.6
+matplotlib==3.10.9
+tiktoken==0.13.0          # o200k_base tokenizer, used to lay out the fig4 instruction text
+huggingface_hub==1.16.1   # load the released figure-summary artifacts from Hugging Face
+# notebook / jupyter (only needed to run the .ipynb interactively)
+jupyter>=1.0
+ipykernel>=6
