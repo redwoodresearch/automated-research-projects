@@ -13,6 +13,12 @@ outputs of these scripts.
 This is a *subset* of the ~190 scripts in the working run — the ones that matter for the published
 results. Each file keeps its original module docstring; one-line summaries below.
 
+> These scripts assume the **original flat module layout** of the research run (e.g. `import
+> instructions`, `import answer_scoring`, `import gpt_oss_infer`), not the release's `cot_steering/`
+> package layout — they are preserved verbatim for reference and are not import-compatible with the
+> release package as-is. The cleaned, import-ready versions of the instruction suite + accuracy scorer
+> live in `cot_steering/instructions.py` and `cot_steering/scoring.py`.
+
 ## harness/ — the generation + intervention engine (GPU / Modal)
 | file | what it does |
 |---|---|

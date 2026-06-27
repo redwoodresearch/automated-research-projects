@@ -90,7 +90,10 @@ cot-controllability-steering-vectors/
 └── README.md
 ```
 
-## Artifacts on Hugging Face (org `automated-alignment-science`)
+Both load paths and the master notebook run on CPU in seconds with **no network beyond the (public)
+Hugging Face download** in `--source hf`/`auto` (fully offline with `--source local`).
+
+## Artifacts on Hugging Face (org `automated-alignment-science`, public)
 
 **Dataset repo — [`automated-alignment-science/cot-controllability-steering-vectors`](https://huggingface.co/datasets/automated-alignment-science/cot-controllability-steering-vectors)**
 - `steering_vectors/` — the headline `grad_steer_gL10.npz` (layer 10, 2,880 floats) + the full family
@@ -109,8 +112,9 @@ cot-controllability-steering-vectors/
 - `cdel/` — the compliant rank-32 LoRA fine-tune (the held-out CoT-control benchmark).
 - `ctrldel/` — the matched raw-trace control (same prompts/config, non-complying targets).
 
-The code loads these automatically (`cot_steering.artifacts`). Set `COT_ARTIFACT_SOURCE=local` to use
-the committed `figure_data/` copies instead.
+Both repos are **public**. The code loads them automatically (`cot_steering.artifacts`); no token is
+required. Set `COT_ARTIFACT_SOURCE=local` (or `--source local`) to use the committed `figure_data/`
+copies instead and run fully offline.
 
 ## Reproduce the figure data from raw artifacts
 

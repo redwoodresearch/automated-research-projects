@@ -16,9 +16,16 @@ derives them from the raw run artifacts on CPU at ~$0 (no model generation):
 
   * ``fig5_subspan_attention.json`` -- fig5 plots *base vs steered* attention onto each
     instruction part with per-example bootstrap CIs. The per-example attention tensors
-    live in ``tok_subspan_attn.npz`` (288 examples x 24 layers x 64 heads, ~31 MB). We
-    reduce them exactly as the reference plot did (recruited late layers, sum over the
-    span's tokens, mean over late layers) and bootstrap a 95% CI over examples.
+    live in ``tok_subspan_attn.npz`` (288 examples x 24 layers x 64 heads; each value is the
+    attention onto a span, already summed over the span's tokens). We reduce them exactly as
+    the reference plot did (recruited late layers, sum over heads, mean over late layers) and
+    bootstrap a 95% CI over examples.
+
+  * ``fig4_token_shading.json`` -- fig4 shades each instruction token by the per-token-average
+    attention increase (steered - base) of the instruction part it belongs to. We tokenize the
+    two instructions with o200k_base, assign each token to its part by substring matching, and
+    divide each part's total attention delta (from ``tok_subspan.json``) by its token count. This
+    is the one place the o200k_base tokenizer is used; doing it here keeps the plot path offline.
 
   * ``fig2_random_null.json`` -- fig2's "random vector (same size)" bar is the held-out
     bullet ``effective_control`` of five random matched-norm vectors. We recompute it
@@ -42,17 +49,13 @@ from pathlib import Path
 
 import numpy as np
 
+from cot_steering.artifacts import RAW_SUMMARY_FILES
+
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "figure_data"
 
-# Files copied through verbatim: (source filename, must-exist)
-COPY_FILES = [
-    "steer_deliverable_gL10.json",
-    "ft_deliverable_cdel_vs_ctrldel.json",
-    "steer_eval_heldout_analysis.json",
-    "mech_qkov.json",
-    "tok_subspan.json",
-]
+# Small summaries copied through verbatim (the canonical research artifacts).
+COPY_FILES = RAW_SUMMARY_FILES
 
 # Recruited late attention layers used for the fig5 sub-span reduction (odd / full-attention
 # layers 13..23). Matches the reference plotting code exactly.
@@ -69,6 +72,80 @@ def _boot_ci(x: np.ndarray, n: int = BOOT_N, seed: int = BOOT_SEED):
     x = x[~np.isnan(x)]
     boots = [float(np.mean(rng.choice(x, len(x), replace=True))) for _ in range(n)]
     return float(np.mean(x)), float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))
+
+
+# --- fig4: tokenize the instruction text + assign each token to its instruction part ----------
+_PREFACE = "Formatting requirement for your reasoning: "
+_CHAIN = "your chain of thought (your step-by-step reasoning)"
+_INSTR_TEXT = {
+    "bullet": _PREFACE + f"write {_CHAIN} as a bulleted list. Every line of your reasoning must "
+              "start with '- ' (a hyphen and a space).",
+    "numbered": _PREFACE + f"write {_CHAIN} as a numbered list. Every line of your reasoning must "
+                "start with a number followed by a period (1. , 2. , 3. , ...).",
+}
+_COT_SUBS = ["chain of thought", "step-by-step reasoning", "your reasoning", "reasoning step", "each step"]
+_PART_DEFS = {
+    "bullet": {"spec": ["bulleted list", "bulleted", "'- '", "a hyphen and a space", "hyphen"],
+               "cot": _COT_SUBS, "dir": ["write", "Every line", "must start with"]},
+    "numbered": {"spec": ["numbered list", "numbered", "a number followed by a period",
+                          "(1. , 2. , 3. , ...)", "1.", "2.", "3.", "number followed by a period"],
+                 "cot": _COT_SUBS, "dir": ["write", "Every line", "must start with"]},
+}
+_PART_PRIORITY = ["spec", "cot", "dir"]
+_PART_NAME = {"spec": "spec", "cot": "cot_target", "dir": "directive"}
+
+
+def _char_set(text, subs):
+    cs = set()
+    for sub in subs:
+        i = text.find(sub)
+        while i != -1:
+            cs.update(range(i, i + len(sub)))
+            i = text.find(sub, i + 1)
+    return cs
+
+
+def _assign_tokens(cond, enc):
+    """[(token_text, part_name), ...] for the instruction; parts located by substring matching.
+
+    Char offsets are reconstructed by summing per-token decoded lengths; this is exact because the
+    two instruction strings are pure ASCII (one decoded char per source char).
+    """
+    text = _INSTR_TEXT[cond]
+    ids = enc.encode(text)
+    toks, spans, pos = [], [], 0
+    for i in ids:
+        t = enc.decode([i])
+        toks.append(t); spans.append((pos, pos + len(t))); pos += len(t)
+    cby = {g: _char_set(text, _PART_DEFS[cond][g]) for g in _PART_PRIORITY}
+    out = []
+    for t, (c0, c1) in zip(toks, spans):
+        chars = set(range(c0, c1)); part = "rest"
+        for g in _PART_PRIORITY:
+            if chars & cby[g]:
+                part = _PART_NAME[g]; break
+        out.append((t, part))
+    return out
+
+
+def derive_fig4(raw_dir: Path) -> dict:
+    """Per-token shading: each instruction token + its part's per-token-average attention increase."""
+    import tiktoken
+    enc = tiktoken.get_encoding("o200k_base")
+    mass = json.loads((raw_dir / "tok_subspan.json").read_text())["attn_mass"]
+    out: dict = {"part_values": {}}
+    vmax = 0.0
+    for cond in ("bullet", "numbered"):
+        toks = _assign_tokens(cond, enc)
+        counts: dict = {}
+        for _, g in toks:
+            counts[g] = counts.get(g, 0) + 1
+        per_tok = {g: mass[cond][g]["delta"] / counts[g] for g in counts}
+        out[cond] = [{"t": t, "v": per_tok[g]} for t, g in toks]
+        out["part_values"][cond] = per_tok
+        vmax = max(vmax, max(per_tok.values()))
+    out["vmax"] = vmax
+    return out
 
 
 def derive_fig5(raw_dir: Path) -> dict:
@@ -190,6 +267,10 @@ def main():
             raise FileNotFoundError(f"required summary missing: {src}")
         shutil.copyfile(src, OUT / fn)
         print(f"[precompute] copied {fn}")
+
+    fig4 = derive_fig4(raw_dir)
+    (OUT / "fig4_token_shading.json").write_text(json.dumps(fig4, indent=2))
+    print("[precompute] wrote fig4_token_shading.json")
 
     fig5 = derive_fig5(raw_dir)
     (OUT / "fig5_subspan_attention.json").write_text(json.dumps(fig5, indent=2))

@@ -66,7 +66,8 @@ REFERENCE = {
 }
 
 
-def _verify(all_keys: dict) -> bool:
+def verify(all_keys: dict) -> bool:
+    """Assert each regenerated figure's key numbers match the published reference. Returns bool."""
     ok = True
     for name, checks in REFERENCE.items():
         if name not in all_keys:
@@ -100,25 +101,18 @@ def main():
     args = ap.parse_args()
 
     names = args.only or list(figures.FIGURES)
-    out_dir = Path(args.out); out_dir.mkdir(parents=True, exist_ok=True)
-    all_keys = {}
-    import matplotlib.pyplot as plt
-    for name in names:
-        if name not in figures.FIGURES:
-            ap.error(f"unknown figure '{name}'. Choices: {list(figures.FIGURES)}")
-        fig, keys = figures.FIGURES[name](source=args.source)
-        for ext in args.formats:
-            fig.savefig(out_dir / f"{name}.{ext}", bbox_inches="tight")
-        plt.close(fig)
-        all_keys[name] = keys
-        print(f"[figures] saved {name} -> {out_dir}")
+    unknown = [n for n in names if n not in figures.FIGURES]
+    if unknown:
+        ap.error(f"unknown figure(s) {unknown}. Choices: {list(figures.FIGURES)}")
+    out_dir = Path(args.out)
+    all_keys = figures.generate_all(out_dir, source=args.source, names=names, formats=args.formats)
 
     (out_dir / "figure_key_numbers.json").write_text(json.dumps(all_keys, indent=2))
     print(f"[figures] wrote {out_dir / 'figure_key_numbers.json'}")
 
     if args.verify:
         print("\n[verify] checking key plotted numbers against the published reference:")
-        if _verify(all_keys):
+        if verify(all_keys):
             print("[verify] ALL CHECKS PASSED")
         else:
             print("[verify] MISMATCH -- see XX lines above")

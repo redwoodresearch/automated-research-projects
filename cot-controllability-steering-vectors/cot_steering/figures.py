@@ -203,70 +203,12 @@ def fig3_mechanism(source=None):
 # =========================================================================================
 # FIG 4 -- instruction text shaded by the per-part attention increase (steered - base)
 # =========================================================================================
-_PREFACE = "Formatting requirement for your reasoning: "
-_CHAIN = "your chain of thought (your step-by-step reasoning)"
-_INSTR_TEXT = {
-    "bullet": _PREFACE + f"write {_CHAIN} as a bulleted list. Every line of your reasoning must "
-              "start with '- ' (a hyphen and a space).",
-    "numbered": _PREFACE + f"write {_CHAIN} as a numbered list. Every line of your reasoning must "
-                "start with a number followed by a period (1. , 2. , 3. , ...).",
-}
-_COT_SUBS = ["chain of thought", "step-by-step reasoning", "your reasoning", "reasoning step", "each step"]
-_PART_DEFS = {
-    "bullet": {"spec": ["bulleted list", "bulleted", "'- '", "a hyphen and a space", "hyphen"],
-               "cot": _COT_SUBS, "dir": ["write", "Every line", "must start with"]},
-    "numbered": {"spec": ["numbered list", "numbered", "a number followed by a period",
-                          "(1. , 2. , 3. , ...)", "1.", "2.", "3.", "number followed by a period"],
-                 "cot": _COT_SUBS, "dir": ["write", "Every line", "must start with"]},
-}
-_PART_PRIORITY = ["spec", "cot", "dir"]
-_PART_NAME = {"spec": "spec", "cot": "cot_target", "dir": "directive"}
-
-
-def _char_set(text, subs):
-    cs = set()
-    for sub in subs:
-        i = text.find(sub)
-        while i != -1:
-            cs.update(range(i, i + len(sub)))
-            i = text.find(sub, i + 1)
-    return cs
-
-
-def _assign_tokens(cond, enc):
-    """Return [(token_text, part_name), ...] for the instruction, parts by substring match."""
-    text = _INSTR_TEXT[cond]
-    ids = enc.encode(text)
-    toks, spans, pos = [], [], 0
-    for i in ids:
-        t = enc.decode([i])
-        toks.append(t); spans.append((pos, pos + len(t))); pos += len(t)
-    cby = {g: _char_set(text, _PART_DEFS[cond][g]) for g in _PART_PRIORITY}
-    out = []
-    for t, (c0, c1) in zip(toks, spans):
-        chars = set(range(c0, c1)); part = "rest"
-        for g in _PART_PRIORITY:
-            if chars & cby[g]:
-                part = _PART_NAME[g]; break
-        out.append((t, part))
-    return out
-
-
+# The token layout + per-token shading value is precomputed into ``fig4_token_shading.json`` by
+# ``precompute_figure_data.py`` (which uses the o200k_base tokenizer once). Plotting needs no
+# tokenizer and no network, so this figure is fully offline like the others.
 def fig4_attention_tokens(source=None):
-    import tiktoken
-    enc = tiktoken.get_encoding("o200k_base")
-    mass = load_figure_json("tok_subspan.json", source=source)["attn_mass"]
-    tokmaps = {c: _assign_tokens(c, enc) for c in ("bullet", "numbered")}
-    # per-token average attention increase within each part (pooled over recruited late heads)
-    per_tok_inc = {}
-    for c in ("bullet", "numbered"):
-        counts = {}
-        for _, g in tokmaps[c]:
-            counts[g] = counts.get(g, 0) + 1
-        per_tok_inc[c] = {g: mass[c][g]["delta"] / counts[g] for g in counts}
-
-    vmax = max(max(v.values()) for v in per_tok_inc.values())
-    norm = colors.Normalize(vmin=0.0, vmax=vmax)
+    data = load_figure_json("fig4_token_shading.json", source=source)
+    norm = colors.Normalize(vmin=0.0, vmax=data["vmax"])
     cmap = colormaps["Reds"]
 
     CW, LH, WRAP = 1.0, 2.0, 70
@@ -277,11 +219,11 @@ def fig4_attention_tokens(source=None):
             ax.text(0, y + 1.0, f"{c} instruction", fontsize=11, fontweight="bold", va="bottom")
             y -= LH * 0.7
             x = 0.0
-            for t, g in tokmaps[c]:
+            for tok in data[c]:
+                t, val = tok["t"], max(0.0, tok["v"])
                 w = len(t) * CW
                 if x + w > WRAP:
                     x = 0.0; y -= LH
-                val = max(0.0, per_tok_inc[c][g])
                 fc = cmap(norm(val))
                 ax.add_patch(Rectangle((x, y - 0.45), w, 1.35, fc=fc, ec="none", zorder=1))
                 lum = 0.299 * fc[0] + 0.587 * fc[1] + 0.114 * fc[2]
@@ -300,7 +242,8 @@ def fig4_attention_tokens(source=None):
                      "(per-token average within each instruction part)", fontsize=9)
         cb.ax.tick_params(labelsize=8)
 
-    keys = {c: {g: round(v, 4) for g, v in per_tok_inc[c].items()} for c in per_tok_inc}
+    keys = {c: {g: round(v, 4) for g, v in data["part_values"][c].items()}
+            for c in ("bullet", "numbered")}
     return fig, keys
 
 
@@ -356,13 +299,15 @@ FIGURES = {
 }
 
 
-def generate_all(out_dir, source=None, formats=("png", "pdf"), verbose=True):
-    """Regenerate every figure to ``out_dir``; return {name: key_numbers}."""
+def generate_all(out_dir, source=None, names=None, formats=("png", "pdf"), verbose=True):
+    """Regenerate figures ``names`` (default all) to ``out_dir``; return ``{name: key_numbers}``."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     all_keys = {}
-    for name, fn in FIGURES.items():
-        fig, keys = fn(source=source)
+    for name in (names or list(FIGURES)):
+        if name not in FIGURES:
+            raise KeyError(f"unknown figure '{name}'. Choices: {list(FIGURES)}")
+        fig, keys = FIGURES[name](source=source)
         for ext in formats:
             fig.savefig(out_dir / f"{name}.{ext}", bbox_inches="tight")
         plt.close(fig)

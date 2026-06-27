@@ -28,15 +28,21 @@ HF_MODEL_REPO = "automated-alignment-science/cot-controllability-gpt-oss-20b-lor
 _PKG_ROOT = Path(__file__).resolve().parent.parent
 _LOCAL_FIGURE_DATA = _PKG_ROOT / "figure_data"
 
-# Figure-summary files that may be committed locally and/or hosted on HF.
-FIGURE_DATA_FILES = [
+# Canonical lists of the raw artifacts needed to *re-derive* figure_data/ (used by
+# precompute_figure_data.py and ensure_results_raw). Defined once here so they cannot drift.
+#  - RAW_SUMMARY_FILES: small summaries copied through verbatim (the canonical research artifacts).
+#  - RAW_DERIVE_INPUTS: the large raw artifacts the two derived summaries are computed from.
+RAW_SUMMARY_FILES = [
     "steer_deliverable_gL10.json",
     "ft_deliverable_cdel_vs_ctrldel.json",
     "steer_eval_heldout_analysis.json",
     "mech_qkov.json",
     "tok_subspan.json",
-    "fig5_subspan_attention.json",
-    "fig2_random_null.json",
+]
+RAW_DERIVE_INPUTS = [
+    "tok_subspan_attn.npz",            # fig5 per-example attention tensors
+    "tok_subspan_attn_meta.json",
+    "grad_steer_eval_deliverable_delivnull_judged.jsonl",  # fig2 random-null per-row generations
 ]
 
 
@@ -114,16 +120,13 @@ def ensure_results_raw(filenames: list[str] | None = None) -> Path:
     """Download the raw artifacts needed to *re-derive* figure_data and return their dir.
 
     Used by ``precompute_figure_data.py``. Downloads the per-example attention tensors
-    (``tok_subspan_attn.npz`` + meta) and the random-null judged generations.
+    (``tok_subspan_attn.npz`` + meta), the random-null judged generations, and the verbatim
+    summaries, all into one ``results_raw/`` snapshot directory.
     """
     from huggingface_hub import hf_hub_download
 
     if filenames is None:
-        filenames = [
-            "tok_subspan_attn.npz",
-            "tok_subspan_attn_meta.json",
-            "grad_steer_eval_deliverable_delivnull_judged.jsonl",
-        ] + FIGURE_DATA_FILES_RAW
+        filenames = RAW_DERIVE_INPUTS + RAW_SUMMARY_FILES
     token = os.environ.get("HF_TOKEN")
     out_dir = None
     for fn in filenames:
@@ -133,13 +136,3 @@ def ensure_results_raw(filenames: list[str] | None = None) -> Path:
         out_dir = p.parent
     assert out_dir is not None
     return out_dir
-
-
-# Raw copies of the figure summaries (so precompute can run purely from HF results_raw).
-FIGURE_DATA_FILES_RAW = [
-    "steer_deliverable_gL10.json",
-    "ft_deliverable_cdel_vs_ctrldel.json",
-    "steer_eval_heldout_analysis.json",
-    "mech_qkov.json",
-    "tok_subspan.json",
-]

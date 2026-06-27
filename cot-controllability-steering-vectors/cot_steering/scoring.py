@@ -1,6 +1,12 @@
 """Robust, reusable answer extraction + accuracy scoring on the Harmony ``final`` channel.
 
-The shared accuracy module. Accuracy is scored on the
+Reference module (for understanding the accuracy metric used in the evals) — it is NOT on the
+figure-reproduction path. Numeric/math scoring needs the optional ``math_verify`` package
+(``pip install math_verify``); multiple-choice scoring needs no extra dependency. (The research
+run also had an LLM math-equivalence judge fallback; it is omitted here as it depends on the
+project's Anthropic wrapper.)
+
+Accuracy is scored on the
 model's **final** answer (the parsed Harmony ``final`` channel) — never the whole output and
 never the ``analysis`` channel. Three answer types are handled:
 
@@ -304,45 +310,3 @@ def score_accuracy(final_text: str, answer: str, answer_type: str,
                    n_options: Optional[int] = None) -> Optional[bool]:
     """Thin backward-compatible wrapper returning Optional[bool] (None = empty final)."""
     return score_answer(final_text, answer, answer_type, n_options)["correct"]
-
-
-# ---------------------------------------------------------------------------
-# LLM judge (conservative, cost-tracked) for disputed MATH cases. Secondary metric.
-# ---------------------------------------------------------------------------
-_JUDGE_SYSTEM = (
-    "You are a strict grader for competition-math final answers. You are given a question, the "
-    "reference (gold) final answer, and a student's final answer. Decide whether the student's "
-    "final answer is MATHEMATICALLY EQUIVALENT to the gold answer (same value/expression, "
-    "allowing only differences in formatting: fractions vs decimals of the SAME exact value, "
-    "1/2 vs 0.5, ordering of a sum, equivalent simplification, units/$/%, LaTeX style, "
-    "set/interval/tuple notation). Be STRICT: do NOT accept a rounded decimal approximation of "
-    "an exact radical/pi/fraction answer (e.g. 1.41 is NOT equivalent to sqrt(2)); do NOT accept "
-    "a different numeric value; do NOT be lenient. Respond with EXACTLY one word: EQUIVALENT or "
-    "DIFFERENT."
-)
-
-
-async def math_judge_equiv(question: str, gold: str, pred: str, *,
-                           sample_idx: int = 0, assert_cached: bool = False) -> Optional[bool]:
-    """Ask a cached, cost-tracked LLM judge whether ``pred`` is equivalent to ``gold``.
-
-    Returns True (EQUIVALENT) / False (DIFFERENT) / None (unparseable verdict). Only the gold and
-    the student's extracted final answer (+ question) are shown — never the model's CoT.
-    """
-    if pred is None or str(pred).strip() == "":
-        return False
-    import llm  # lazy import (wires Anthropic + cost tracking)
-    prompt = (
-        f"Question:\n{question.strip()}\n\n"
-        f"Gold final answer:\n{gold}\n\n"
-        f"Student's final answer:\n{pred}\n\n"
-        "Are they mathematically equivalent? Answer EQUIVALENT or DIFFERENT."
-    )
-    resp = await llm.judge(prompt, system=_JUDGE_SYSTEM, max_tokens=8,
-                           sample_idx=sample_idx, assert_cached=assert_cached)
-    r = resp.strip().upper()
-    if "EQUIVALENT" in r and "DIFFERENT" not in r:
-        return True
-    if "DIFFERENT" in r:
-        return False
-    return None
