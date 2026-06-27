@@ -125,7 +125,9 @@ def fig1_headline(source=None):
     keys = {
         "bullet": {"base": base[0], "ft": ft[0], "vec": vec[0]},
         "terse": {"base": base[1], "ft": ft[1], "vec": vec[1]},
+        "numbered": {"base": base[2], "ft": ft[2], "vec": vec[2]},
         "ft_uplift_pp": ftup["point"] * 100,
+        "ft_uplift_ci": [ftup["ci_lo"] * 100, ftup["ci_hi"] * 100],
         "vec_uplift_pp": gup["point"] * 100,
         "vec_uplift_ci": [gup["ci_lo"] * 100, gup["ci_hi"] * 100],
         "paired_diff_pp": diff["point"] * 100,

@@ -101,6 +101,23 @@ cot-controllability-steering-vectors/
 Both load paths and the master notebook run on CPU in seconds with **no network beyond the (public)
 Hugging Face download** in `--source hf`/`auto` (fully offline with `--source local`).
 
+`generate_figures.py --verify` asserts 31 checks (22 plotted values + 9 structural/relative claims,
+e.g. the paired vector−fine-tune CI brackets 0 and the specifier is the most-attended part). Note the
+default `--source auto` falls back to the committed `figure_data/` if Hugging Face is unreachable, so
+to specifically exercise the HF path use `--source hf --verify`.
+
+### Tests
+
+```bash
+python tests/test_release.py        # CPU-only; HF-network tests skip cleanly when offline
+# or: pytest tests/
+```
+
+Covers: verify from local **and** from Hugging Face (separately), local==HF parity for every
+`figure_data` file, cross-artifact consistency (the derived fig4/fig5 summaries agree with the raw
+`tok_subspan.json`), the fully-offline path, and that the figures write non-empty PNG/PDF. The
+optional precompute round-trip runs with `COT_RAW_DIR=/path/to/results`.
+
 ## Artifacts on Hugging Face (org `automated-alignment-science`, public)
 
 **Dataset repo — [`automated-alignment-science/cot-controllability-steering-vectors`](https://huggingface.co/datasets/automated-alignment-science/cot-controllability-steering-vectors)**

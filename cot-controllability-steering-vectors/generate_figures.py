@@ -29,11 +29,17 @@ DEFAULT_OUT = HERE / "figures"
 
 # Reference values the regenerated figures must match (from the published blog post +
 # the verified result artifacts). (value, abs_tolerance_in_the_plotted_unit).
+# Numeric checks: (label, getter, expected, abs_tolerance). Cover the load-bearing plotted values.
 REFERENCE = {
     "fig1_headline": [
-        ("bullet vector %", lambda k: k["bullet"]["vec"], 48.0, 0.5),
+        ("bullet base/FT/vector %", lambda k: k["bullet"]["base"], 0.0, 0.5),
         ("bullet FT %", lambda k: k["bullet"]["ft"], 52.0, 0.5),
-        ("bullet base %", lambda k: k["bullet"]["base"], 0.0, 0.5),
+        ("bullet vector %", lambda k: k["bullet"]["vec"], 48.0, 0.5),
+        ("terse base %", lambda k: k["terse"]["base"], 14.0, 0.5),
+        ("terse FT %", lambda k: k["terse"]["ft"], 61.0, 0.5),
+        ("terse vector %", lambda k: k["terse"]["vec"], 69.0, 0.5),
+        ("numbered FT %", lambda k: k["numbered"]["ft"], 9.0, 0.5),
+        ("numbered vector %", lambda k: k["numbered"]["vec"], 8.0, 0.5),
         ("vector uplift pp", lambda k: k["vec_uplift_pp"], 12.8, 0.2),
         ("FT uplift pp", lambda k: k["ft_uplift_pp"], 12.3, 0.2),
         ("paired diff pp", lambda k: k["paired_diff_pp"], 0.4, 0.2),
@@ -53,21 +59,59 @@ REFERENCE = {
         ("numbered value %", lambda k: k["numbered"]["value_pct"], 16.0, 1.5),
     ],
     "fig4_attention_tokens": [
-        # the format specifier darkens most; the "your reasoning" reference stays pale.
-        ("bullet spec > cot_target", lambda k: k["bullet"]["spec"] - k["bullet"]["cot_target"], 0.0,
-         None),  # checked as >0 below
+        ("bullet spec increase", lambda k: k["bullet"]["spec"], 0.385, 0.03),
+        ("numbered spec increase", lambda k: k["numbered"]["spec"], 0.211, 0.03),
     ],
     "fig5_subspan": [
         ("bullet spec base", lambda k: k["bullet"]["spec"]["base"], 2.3, 0.15),
         ("bullet spec steer", lambda k: k["bullet"]["spec"]["steer"], 6.5, 0.15),
         ("numbered spec base", lambda k: k["numbered"]["spec"]["base"], 3.9, 0.15),
         ("numbered spec steer", lambda k: k["numbered"]["spec"]["steer"], 8.6, 0.15),
+        ("bullet cot_target base", lambda k: k["bullet"]["cot_target"]["base"], 4.5, 0.2),
+        ("bullet cot_target steer", lambda k: k["bullet"]["cot_target"]["steer"], 4.0, 0.2),
+    ],
+}
+
+# Structural checks: (label, predicate(keys) -> bool, detail string). Guard the *relative* claims
+# (the headline messages), not just point values.
+PREDICATES = {
+    "fig1_headline": [
+        ("paired vector-FT diff CI brackets 0",
+         lambda k: k["paired_diff_ci"][0] < 0 < k["paired_diff_ci"][1],
+         lambda k: f"CI {[round(x, 1) for x in k['paired_diff_ci']]}"),
+        ("vector uplift CI clears +10pp", lambda k: k["vec_uplift_ci"][0] > 10.0,
+         lambda k: f"ci_lo {k['vec_uplift_ci'][0]:.1f} > 10"),
+        ("FT uplift CI clears +10pp", lambda k: k["ft_uplift_ci"][0] > 10.0,
+         lambda k: f"ci_lo {k['ft_uplift_ci'][0]:.1f} > 10"),
+    ],
+    "fig4_attention_tokens": [
+        ("bullet: specifier is the max part",
+         lambda k: k["bullet"]["spec"] == max(k["bullet"].values()),
+         lambda k: "spec %.3f = max(%s)" % (k["bullet"]["spec"],
+                   {p: round(v, 3) for p, v in k["bullet"].items()})),
+        ("numbered: specifier is the max part",
+         lambda k: k["numbered"]["spec"] == max(k["numbered"].values()),
+         lambda k: f"spec {k['numbered']['spec']:.3f}"),
+        ("bullet: 'your reasoning' barely moves (< specifier)",
+         lambda k: k["bullet"]["cot_target"] < k["bullet"]["spec"] * 0.2,
+         lambda k: f"cot_target {k['bullet']['cot_target']:.3f} << spec {k['bullet']['spec']:.3f}"),
+    ],
+    "fig5_subspan": [
+        ("bullet: specifier roughly triples (steer >> base)",
+         lambda k: k["bullet"]["spec"]["steer"] > 2.5 * k["bullet"]["spec"]["base"],
+         lambda k: f"{k['bullet']['spec']['base']:.2f} -> {k['bullet']['spec']['steer']:.2f}"),
+        ("bullet: 'your reasoning' does NOT rise",
+         lambda k: k["bullet"]["cot_target"]["steer"] <= k["bullet"]["cot_target"]["base"],
+         lambda k: f"{k['bullet']['cot_target']['base']:.2f} -> {k['bullet']['cot_target']['steer']:.2f}"),
+        ("numbered: specifier roughly doubles (steer >> base)",
+         lambda k: k["numbered"]["spec"]["steer"] > 1.8 * k["numbered"]["spec"]["base"],
+         lambda k: f"{k['numbered']['spec']['base']:.2f} -> {k['numbered']['spec']['steer']:.2f}"),
     ],
 }
 
 
 def verify(all_keys: dict) -> bool:
-    """Assert each regenerated figure's key numbers match the published reference. Returns bool."""
+    """Assert each regenerated figure's key numbers + relative claims match the published reference."""
     ok = True
     for name, checks in REFERENCE.items():
         if name not in all_keys:
@@ -75,14 +119,18 @@ def verify(all_keys: dict) -> bool:
         keys = all_keys[name]
         for label, getter, expected, tol in checks:
             got = getter(keys)
-            if tol is None:  # special-case: require strictly greater than `expected`
-                passed = got > expected
-                detail = f"{got:.4f} > {expected}"
-            else:
-                passed = abs(got - expected) <= tol
-                detail = f"{got:.4f} vs {expected} (tol {tol})"
+            passed = abs(got - expected) <= tol
             mark = "OK " if passed else "XX "
-            print(f"  [{mark}] {name}: {label}: {detail}")
+            print(f"  [{mark}] {name}: {label}: {got:.4f} vs {expected} (tol {tol})")
+            ok = ok and passed
+    for name, preds in PREDICATES.items():
+        if name not in all_keys:
+            continue
+        keys = all_keys[name]
+        for label, pred, detail in preds:
+            passed = bool(pred(keys))
+            mark = "OK " if passed else "XX "
+            print(f"  [{mark}] {name}: {label}: {detail(keys)}")
             ok = ok and passed
     return ok
 

@@ -9,9 +9,16 @@ chain-of-thought control that fine-tuning does."*
 Reproduce + check the numbers yourself:
 
 ```bash
-python generate_figures.py --verify          # loads figure_data from Hugging Face, asserts the key numbers
-python generate_figures.py --source local    # or use the committed figure_data/ (offline)
+python generate_figures.py --verify          # auto-loads figure_data (HF, local fallback), asserts the numbers
+python generate_figures.py --source hf --verify     # specifically exercise the Hugging Face load path
+python generate_figures.py --source local --verify  # fully offline, committed figure_data/
+python tests/test_release.py                 # the full test suite (verify both sources, parity, consistency)
 ```
+
+`--verify` runs **31 checks**: 22 plotted-value assertions (table below) plus 9 structural/relative
+checks that guard the headline *messages* (the paired vector−fine-tune CI brackets 0; both uplift CIs
+clear +10pp; the format specifier is the most-attended instruction part for both bullet & numbered;
+the "your reasoning" reference does not rise under steering).
 
 ## Figure → data map (each figure's exact source + plotted quantities)
 

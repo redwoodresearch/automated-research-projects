@@ -52,7 +52,7 @@ import numpy as np
 from cot_steering.artifacts import RAW_SUMMARY_FILES
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "figure_data"
+DEFAULT_OUT = HERE / "figure_data"
 
 # Small summaries copied through verbatim (the canonical research artifacts).
 COPY_FILES = RAW_SUMMARY_FILES
@@ -246,7 +246,11 @@ def main():
     ap.add_argument("--raw-dir", type=str, default=None,
                     help="Directory holding the raw run artifacts (results/). "
                          "If omitted, downloads the published HF results_raw snapshot.")
+    ap.add_argument("--out", type=str, default=str(DEFAULT_OUT),
+                    help="Where to write the derived figure_data files (default: ./figure_data; "
+                         "point elsewhere to re-derive without overwriting the committed copies).")
     args = ap.parse_args()
+    OUT = Path(args.out)
 
     if args.raw_dir:
         raw_dir = Path(args.raw_dir).resolve()
@@ -255,7 +259,7 @@ def main():
         raw_dir = ensure_results_raw()
     print(f"[precompute] raw-dir = {raw_dir}")
 
-    OUT.mkdir(exist_ok=True)
+    OUT.mkdir(parents=True, exist_ok=True)
     for fn in COPY_FILES:
         src = raw_dir / fn
         if not src.exists():
