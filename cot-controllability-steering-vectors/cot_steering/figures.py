@@ -364,7 +364,7 @@ def generate_all(out_dir, source=None, formats=("png", "pdf"), verbose=True):
     for name, fn in FIGURES.items():
         fig, keys = fn(source=source)
         for ext in formats:
-            fig.savefig(out_dir / f"{name}.{ext}")
+            fig.savefig(out_dir / f"{name}.{ext}", bbox_inches="tight")
         plt.close(fig)
         all_keys[name] = keys
         if verbose:

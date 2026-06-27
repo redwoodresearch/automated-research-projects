@@ -108,7 +108,7 @@ def main():
             ap.error(f"unknown figure '{name}'. Choices: {list(figures.FIGURES)}")
         fig, keys = figures.FIGURES[name](source=args.source)
         for ext in args.formats:
-            fig.savefig(out_dir / f"{name}.{ext}")
+            fig.savefig(out_dir / f"{name}.{ext}", bbox_inches="tight")
         plt.close(fig)
         all_keys[name] = keys
         print(f"[figures] saved {name} -> {out_dir}")
