@@ -75,14 +75,9 @@ def _boot_ci(x: np.ndarray, n: int = BOOT_N, seed: int = BOOT_SEED):
 
 
 # --- fig4: tokenize the instruction text + assign each token to its instruction part ----------
-_PREFACE = "Formatting requirement for your reasoning: "
-_CHAIN = "your chain of thought (your step-by-step reasoning)"
-_INSTR_TEXT = {
-    "bullet": _PREFACE + f"write {_CHAIN} as a bulleted list. Every line of your reasoning must "
-              "start with '- ' (a hyphen and a space).",
-    "numbered": _PREFACE + f"write {_CHAIN} as a numbered list. Every line of your reasoning must "
-                "start with a number followed by a period (1. , 2. , 3. , ...).",
-}
+# The instruction TEXT comes from the released instruction suite (cot_steering.instructions) so it
+# cannot drift from the wording the model was actually shown; only the part->substring definitions
+# (which words belong to the format specifier / directive / etc.) live here.
 _COT_SUBS = ["chain of thought", "step-by-step reasoning", "your reasoning", "reasoning step", "each step"]
 _PART_DEFS = {
     "bullet": {"spec": ["bulleted list", "bulleted", "'- '", "a hyphen and a space", "hyphen"],
@@ -105,13 +100,12 @@ def _char_set(text, subs):
     return cs
 
 
-def _assign_tokens(cond, enc):
+def _assign_tokens(cond, text, enc):
     """[(token_text, part_name), ...] for the instruction; parts located by substring matching.
 
     Char offsets are reconstructed by summing per-token decoded lengths; this is exact because the
     two instruction strings are pure ASCII (one decoded char per source char).
     """
-    text = _INSTR_TEXT[cond]
     ids = enc.encode(text)
     toks, spans, pos = [], [], 0
     for i in ids:
@@ -131,12 +125,13 @@ def _assign_tokens(cond, enc):
 def derive_fig4(raw_dir: Path) -> dict:
     """Per-token shading: each instruction token + its part's per-token-average attention increase."""
     import tiktoken
+    from cot_steering import instructions as I  # the exact instruction wording the model was shown
     enc = tiktoken.get_encoding("o200k_base")
     mass = json.loads((raw_dir / "tok_subspan.json").read_text())["attn_mass"]
     out: dict = {"part_values": {}}
     vmax = 0.0
     for cond in ("bullet", "numbered"):
-        toks = _assign_tokens(cond, enc)
+        toks = _assign_tokens(cond, I.INSTRUCTIONS[cond].prompt_text, enc)
         counts: dict = {}
         for _, g in toks:
             counts[g] = counts.get(g, 0) + 1

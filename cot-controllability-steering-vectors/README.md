@@ -11,6 +11,12 @@ This repo regenerates the five publication figures from released data artifacts 
 model generation). The heavy artifacts (steering vectors, datasets, the LoRA fine-tune) live on
 Hugging Face and are loaded by the code.
 
+## License
+
+Code + the small figure-summary data in this folder are released under the **MIT License** (see
+`LICENSE`). The novel datasets on Hugging Face are MIT; the LoRA fine-tune adapters inherit
+`gpt-oss-20b`'s **Apache-2.0** license.
+
 ## Results in one paragraph
 
 On `gpt-oss-20b`, the base model almost never obeys instructions about *how* to write its CoT (e.g.
@@ -50,15 +56,17 @@ verification against the published reference.
 
 ## Quickstart — regenerate the figures (CPU, seconds)
 
+Python >= 3.10.
+
 ```bash
 pip install -r requirements.txt
 
-# Regenerate fig1-fig5 into ./figures/ (loads the summary artifacts from Hugging Face),
-# and assert the key plotted numbers match the published reference:
+# Regenerate fig1-fig5 into ./figures/ (loads the summary artifacts from Hugging Face, falling back
+# to the committed figure_data/ copies), and assert the key plotted numbers match the reference:
 python generate_figures.py --verify
 
-# Offline variant: use the figure summaries committed under figure_data/
-python generate_figures.py --source local
+# Fully-offline variant: use the figure summaries committed under figure_data/
+python generate_figures.py --source local        # or: COT_ARTIFACT_SOURCE=local python generate_figures.py --verify
 ```
 
 Or run the master notebook end-to-end:
@@ -157,7 +165,7 @@ produce the causal-patch and token-level-attention artifacts.
 
 ## Citation / references
 
-- Chen et al., *Reasoning Models Struggle to Control their Chains of Thought* (2026).
-- METR, *Fine-tuning experiments on CoT controllability* (2026).
+- Chen et al., *Reasoning Models Struggle to Control their Chains of Thought* (2026). arXiv:2603.05706.
+- METR, *Fine-tuning experiments on CoT controllability* (April 2026).
 
 This release packages an internal multi-phase research project; the science is complete and verified.

@@ -19,7 +19,7 @@ python generate_figures.py --source local    # or use the committed figure_data/
 |---|---|---|
 | **fig1_headline** | `steer_deliverable_gL10.json`, `ft_deliverable_cdel_vs_ctrldel.json` | (L) per-held-out-instruction strict CoT-control compliance (`effective_control`) for base / fine-tune / steering vector, n=100 each, 9 held-out instructions; (R) aggregate uplift over base for FT and the vector with 95% cluster-bootstrap CIs, the paired vector−FT difference, and the +10pp dashed line |
 | **fig2_gradient_unlocks_formatting** | `steer_deliverable_gL10.json` (bullet base/vector/FT), `steer_eval_heldout_analysis.json` (average-difference direction, n=39), `fig2_random_null.json` (random vectors, derived) | held-out bullet `effective_control` for base / average-difference direction / random vector / gradient-trained vector / fine-tune, Wilson intervals |
-| **fig3_mechanism** | `mech_qkov.json` | fraction of the formatting effect reproduced by patching the steered attention **pattern** vs the steered attention **values**, for bullet & numbered, per-task min–max → bootstrap CIs |
+| **fig3_mechanism** | `mech_qkov.json` | fraction of the formatting effect reproduced by patching the steered attention **pattern** vs the steered attention **values**, for bullet & numbered; error bars span the per-task min–max range (the `lo`/`hi` fields, = min/max over the 12 contexts) |
 | **fig4_attention_tokens** | `fig4_token_shading.json` (precomputed from `tok_subspan.json` + the o200k_base token layout) | the bullet & numbered instruction text, each token shaded by the per-part average attention increase (steered − base) |
 | **fig5_subspan** | `fig5_subspan_attention.json` (derived from `tok_subspan_attn.npz` per-example tensors) | attention onto each instruction part (format-specifier / "your reasoning" / directive verbs / other), base vs steered, bullet & numbered, pooled over recruited late heads, bootstrap CIs |
 
@@ -48,7 +48,8 @@ the plot path **offline** (no tokenizer download); `tiktoken` is only needed to 
 | fig5 | numbered format-specifier attention: base → steered | 3.95 → 8.59 | 3.9 → 8.6 |
 | fig5 | total instruction attention: bullet / numbered | 12.3→18.4 / 12.8→18.5 | 12.3→18.4 / 12.8→18.5 |
 
-All asserted key numbers match the published reference (see `generate_figures.py --verify`).
+All 21 asserted key numbers match the published reference (see `generate_figures.py --verify`); the
+remaining table rows above are read directly from the released summaries and are consistent with them.
 
 ## Visual comparison
 
@@ -67,7 +68,11 @@ Segment-15 token-level attention artifacts (the published per-token + per-part a
   the figure caption and the blog post. The token→part assignment is precomputed into
   `fig4_token_shading.json` (the two instruction strings are pure ASCII, so the o200k_base
   token→char alignment is exact).
-- fig3/fig5 error bars: fig3 brackets are the per-task min–max → bootstrap CI from `mech_qkov.json`;
-  fig5 bars carry 95% bootstrap CIs over examples (deterministic, seed 0).
+- fig3/fig5 error bars: fig3 brackets are the **per-task min–max range** over the 12 contexts (the
+  `lo`/`hi` fields of `mech_qkov.json`), matching the reference caption; fig5 bars carry 95% bootstrap
+  CIs over examples (deterministic, seed 0).
+- The fig5 "total instruction attention 12.3→18.4 / 12.8→18.5" row is read directly from
+  `tok_subspan.json` (`instruction` span base/steer); it is consistent with the plotted per-part bars
+  but is not one of the 21 asserted `--verify` checks (which cover the format-specifier sub-span).
 - No reproduction gap: every plotted quantity is regenerated from the released artifacts and matches
   the reference numerically and visually.

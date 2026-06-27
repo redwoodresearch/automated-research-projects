@@ -90,8 +90,9 @@ def verify(all_keys: dict) -> bool:
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--source", choices=["auto", "hf", "local"], default="auto",
-                    help="where to load figure-summary artifacts from (default: auto = HF then local)")
+    ap.add_argument("--source", choices=["auto", "hf", "local"], default=None,
+                    help="where to load figure-summary artifacts from (default: the "
+                         "COT_ARTIFACT_SOURCE env var, else auto = HF then local fallback)")
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="output directory for the figures")
     ap.add_argument("--only", nargs="+", default=None,
                     help="regenerate only these figures (names from cot_steering.figures.FIGURES)")
